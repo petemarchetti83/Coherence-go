@@ -163,7 +163,7 @@ func callOpenAI(prompt string) string {
 	}
 
 	payload := map[string]interface{}{
-		"model": "gpt-4",
+		"model": "gpt-3.5-turbo",
 		"messages": []map[string]string{
 			{"role": "system", "content": "You are a transmutation engine."},
 			{"role": "user", "content": prompt},
