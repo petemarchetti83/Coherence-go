@@ -1,13 +1,10 @@
-FROM golang:1.22 as builder
+
+FROM golang:1.21
+
 WORKDIR /app
 
-COPY go.mod go.sum ./
-RUN go mod download
-
 COPY . .
-RUN go build -o coherence-node .
 
-FROM gcr.io/distroless/base-debian12
-COPY --from=builder /app/coherence-node /coherence-node
+RUN go build -o scroll-api main.go
 
-ENTRYPOINT ["/coherence-node"]
+CMD ["./scroll-api"]
