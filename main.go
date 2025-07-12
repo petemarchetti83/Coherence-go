@@ -2,7 +2,7 @@ package main
 
 import (
     "encoding/json"
-        "fmt"
+    "fmt"
     "io/ioutil"
     "log"
     "math/rand"
@@ -11,7 +11,6 @@ import (
     "strings"
     "time"
     "bytes"
-    "net/http"
     "os"
 )
 
