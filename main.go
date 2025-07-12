@@ -15,13 +15,14 @@ import (
 )
 
 type TransmuteRequest struct {
-    Phrase string `json:"phrase"`
+    Phrase     string `json:"phrase"`
+    SourceData string `json:"sourceData"`
 }
 
 type ResonanceResponse struct {
-    XMLName   xml.Name `xml:"resonance"`
     Response  string   `xml:"response"`
     Frequency string   `xml:"frequency"`
+    Output    string   `xml:"output"`
 }
 
 type AddPhraseRequest struct {
@@ -49,13 +50,20 @@ func transmuteHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    target := lookupTargetSample(req.Phrase)
+    if target == "" {
+        http.Error(w, "Phrase not found", http.StatusNotFound)
+        return
+    }
+
     response := ResonanceResponse{
         Response:  "Scroll received: " + req.Phrase,
         Frequency: "432Hz",
+        Output:    target,
     }
 
-    w.Header().Set("Content-Type", "application/xml")
-    xml.NewEncoder(w).Encode(response)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
 }
 
 func addPhraseHandler(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +92,16 @@ func addPhraseHandler(w http.ResponseWriter, r *http.Request) {
         "phrase": phrase,
         "status": "phrase created and stored",
     })
+}
+
+func lookupTargetSample(phrase string) string {
+    phrases := loadPhrases()
+    for _, p := range phrases {
+        if p.Phrase == phrase {
+            return p.TargetSample
+        }
+    }
+    return ""
 }
 
 func generateScrollPhrase(source, target string) string {
@@ -132,5 +150,12 @@ func main() {
     http.HandleFunc("/transmute", transmuteHandler)
     http.HandleFunc("/add-phrase", addPhraseHandler)
     log.Println("Listening on :8080")
+    http.HandleFunc("/list-phrases", listPhrasesHandler)
     log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func listPhrasesHandler(w http.ResponseWriter, r *http.Request) {
+    phrases := loadPhrases()
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(phrases)
 }
