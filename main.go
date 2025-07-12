@@ -66,11 +66,23 @@ func transmuteHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    llmPrompt := "You are a transmutation engine.\n" +
-        "Given an example input-output pair, transform new source input to match the target format.\n\n" +
-        "Example Input:\n" + source + "\n\n" +
-        "Example Output:\n" + target + "\n\n" +
-        "New Input:\n" + req.SourceData + "\n\n" +
+    llmPrompt := "You are a transmutation engine.
+" +
+        "Given an example input-output pair, transform new source input to match the target format.
+
+" +
+        "Example Input:
+" + source + "
+
+" +
+        "Example Output:
+" + target + "
+
+" +
+        "New Input:
+" + req.SourceData + "
+
+" +
         "Your Response (Output):"
 
     transformed := callOpenAI(llmPrompt)
