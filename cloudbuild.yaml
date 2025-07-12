@@ -1,11 +1,6 @@
 options:
   logging: CLOUD_LOGGING_ONLY  # Logs to Cloud Logging
 
-artifacts:
-  objects:
-    location: gs://coherence-go-build-logs/artifacts/
-    paths: ["**/scroll-api", "**/*.go"]
-
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: [
