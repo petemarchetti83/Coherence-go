@@ -1,3 +1,12 @@
+package main
+
+import (
+    "encoding/json"
+    "encoding/xml"
+    "log"
+    "net/http"
+)
+
 type TransmuteRequest struct {
     Phrase string `json:"phrase"`
 }
@@ -23,4 +32,10 @@ func transmuteHandler(w http.ResponseWriter, r *http.Request) {
 
     w.Header().Set("Content-Type", "application/xml")
     xml.NewEncoder(w).Encode(response)
+}
+
+func main() {
+    http.HandleFunc("/transmute", transmuteHandler)
+    log.Println("Listening on :8080")
+    log.Fatal(http.ListenAndServe(":8080", nil))
 }
