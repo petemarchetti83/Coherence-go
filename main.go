@@ -187,15 +187,27 @@ func callOpenAI(prompt string) string {
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
-		return "Request failed"
+		return "Request failed: " + err.Error()
 	}
 	defer res.Body.Close()
 
-	var result map[string]interface{}
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return "Failed to decode response"
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "Failed to read response: " + err.Error()
 	}
 
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "Failed to decode JSON: " + string(body)
+	}
+
+	// Check if OpenAI returned an error
+	if errData, ok := result["error"]; ok {
+		errMap := errData.(map[string]interface{})
+		return fmt.Sprintf("OpenAI Error: %s – %s", errMap["type"], errMap["message"])
+	}
+
+	// Extract message
 	if choices, ok := result["choices"].([]interface{}); ok && len(choices) > 0 {
 		if msg, ok := choices[0].(map[string]interface{})["message"].(map[string]interface{}); ok {
 			if content, ok := msg["content"].(string); ok {
@@ -204,7 +216,8 @@ func callOpenAI(prompt string) string {
 		}
 	}
 
-	return "Failed to parse response"
+	// Unexpected format
+	return "Unexpected response format: " + string(body)
 }
 
 func main() {
