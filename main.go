@@ -1,6 +1,7 @@
 package main
 
 import (
+    "bytes"
     "encoding/json"
     "fmt"
     "io/ioutil"
@@ -10,7 +11,6 @@ import (
     "os"
     "strings"
     "time"
-    "bytes"
 )
 
 type TransmuteRequest struct {
@@ -19,9 +19,9 @@ type TransmuteRequest struct {
 }
 
 type ResonanceResponse struct {
-    Response  string   `xml:"response"`
-    Frequency string   `xml:"frequency"`
-    Output    string   `xml:"output"`
+    Response  string `json:"response"`
+    Frequency string `json:"frequency"`
+    Output    string `json:"output"`
 }
 
 type AddPhraseRequest struct {
@@ -42,7 +42,6 @@ type PhraseEntry struct {
 var phraseFile = "phrases.json"
 
 func transmuteHandler(w http.ResponseWriter, r *http.Request) {
-
     var req TransmuteRequest
     err := json.NewDecoder(r.Body).Decode(&req)
     if err != nil {
@@ -50,7 +49,6 @@ func transmuteHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    
     target := ""
     source := ""
 
@@ -77,15 +75,10 @@ func transmuteHandler(w http.ResponseWriter, r *http.Request) {
 
     transformed := callOpenAI(llmPrompt)
 
-    if target == "" {
-        http.Error(w, "Phrase not found", http.StatusNotFound)
-        return
-    }
-
     response := ResonanceResponse{
         Response:  "Scroll received: " + req.Phrase,
         Frequency: "432Hz",
-        Output:    target,
+        Output:    transformed,
     }
 
     w.Header().Set("Content-Type", "application/json")
@@ -120,14 +113,10 @@ func addPhraseHandler(w http.ResponseWriter, r *http.Request) {
     })
 }
 
-func lookupTargetSample(phrase string) string {
+func listPhrasesHandler(w http.ResponseWriter, r *http.Request) {
     phrases := loadPhrases()
-    for _, p := range phrases {
-        if p.Phrase == phrase {
-            return p.TargetSample
-        }
-    }
-    return ""
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(phrases)
 }
 
 func generateScrollPhrase(source, target string) string {
@@ -141,7 +130,7 @@ func generateScrollPhrase(source, target string) string {
     suffix := suffixMap[strings.ToLower(target)]
     middle := salt[rand.Intn(len(salt))]
 
-    return fmt.Sprintf("%s’%s %s", prefix, suffix, middle)
+    return fmt.Sprintf("%sâ%s %s", prefix, suffix, middle)
 }
 
 func loadPhrases() []PhraseEntry {
@@ -172,34 +161,13 @@ func savePhrases(phrases []PhraseEntry) {
     _ = ioutil.WriteFile(phraseFile, content, 0644)
 }
 
-func main() {
-    http.HandleFunc("/transmute", transmuteHandler)
-    http.HandleFunc("/add-phrase", addPhraseHandler)
-    log.Println("Listening on :8080")
-    http.HandleFunc("/list-phrases", listPhrasesHandler)
-    log.Fatal(http.ListenAndServe(":8080", nil))
-}
-
-func listPhrasesHandler(w http.ResponseWriter, r *http.Request) {
-    phrases := loadPhrases()
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(phrases)
-}
-
 func callOpenAI(prompt string) string {
     apiKey := os.Getenv("OPENAI_API_KEY")
     if apiKey == "" {
         return "Missing API key"
     }
 
-    payload := `{
-        "model": "gpt-4",
-        "messages": [
-            {"role": "system", "content": "You are a transmutation engine."},
-            {"role": "user", "content": "` + prompt + `"}
-        ],
-        "temperature": 0.1
-    }`
+    payload := `{"model": "gpt-4", "messages": [{"role": "system", "content": "You are a transmutation engine."}, {"role": "user", "content": "` + prompt + `"}], "temperature": 0.1}`
 
     req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer([]byte(payload)))
     if err != nil {
@@ -226,4 +194,12 @@ func callOpenAI(prompt string) string {
     }
 
     return "Failed to parse response"
+}
+
+func main() {
+    http.HandleFunc("/transmute", transmuteHandler)
+    http.HandleFunc("/add-phrase", addPhraseHandler)
+    http.HandleFunc("/list-phrases", listPhrasesHandler)
+    log.Println("Listening on :8080")
+    log.Fatal(http.ListenAndServe(":8080", nil))
 }
