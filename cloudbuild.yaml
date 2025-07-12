@@ -1,0 +1,22 @@
+logsBucket: gs://coherence-cloud-v2-build-logs/
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'build', '-t', 'us-central1-docker.pkg.dev/coherence-go-v1/coherence-go-repo/coherence-node', '.' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'push', 'us-central1-docker.pkg.dev/coherence-go-v1/coherence-go-repo/coherence-node' ]
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run', 'deploy', 'coherence-node-v2',
+        '--image', 'us-central1-docker.pkg.dev/coherence-go-v1/coherence-go-repo/coherence-node',
+        '--region', 'us-central1',
+        '--platform', 'managed',
+        '--allow-unauthenticated'
+      ]
+
+images:
+  - us-central1-docker.pkg.dev/coherence-go-v1/coherence-go-repo/coherence-node
