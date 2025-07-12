@@ -11,7 +11,6 @@ import (
     "strings"
     "time"
     "bytes"
-    "os"
 )
 
 type TransmuteRequest struct {
