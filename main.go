@@ -1,20 +1,26 @@
-package main
+type TransmuteRequest struct {
+    Phrase string `json:"phrase"`
+}
 
-import (
-	"log"
-	"net/http"
+type ResonanceResponse struct {
+    XMLName   xml.Name `xml:"resonance"`
+    Response  string   `xml:"response"`
+    Frequency string   `xml:"frequency"`
+}
 
-	"github.com/gorilla/mux"
-)
+func transmuteHandler(w http.ResponseWriter, r *http.Request) {
+    var req TransmuteRequest
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
+        http.Error(w, "Invalid JSON", http.StatusBadRequest)
+        return
+    }
 
-func main() {
-	r := mux.NewRouter()
+    response := ResonanceResponse{
+        Response:  "Scroll received: " + req.Phrase,
+        Frequency: "432Hz",
+    }
 
-	r.HandleFunc("/transmute", TransmuteHandler).Methods("POST")
-
-	log.Println("Server starting on :8080")
-	err := http.ListenAndServe(":8080", r)
-	if err != nil {
-		log.Fatalf("Server failed: %v", err)
-	}
+    w.Header().Set("Content-Type", "application/xml")
+    xml.NewEncoder(w).Encode(response)
 }
