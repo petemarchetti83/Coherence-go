@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -11,6 +10,9 @@ import (
     "os"
     "strings"
     "time"
+    "bytes"
+    "net/http"
+    "os"
 )
 
 type TransmuteRequest struct {
@@ -40,13 +42,6 @@ type PhraseEntry struct {
 }
 
 var phraseFile = "phrases.json"
-
-
-import (
-    "bytes"
-    "net/http"
-    "os"
-)
 
 func transmuteHandler(w http.ResponseWriter, r *http.Request) {
 
