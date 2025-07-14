@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,14 +10,18 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"sync"
 	"time"
+
+	"cloud.google.com/go/firestore"
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
+	"google.golang.org/api/option"
+	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 )
 
 type TransmuteRequest struct {
-	Phrase     string `json:"phrase"`
-	SourceData string `json:"sourceData"`
-	Key5D      string `json:"key5D"`
+	ResonanceKey string `json:"resonanceKey"`
+	SourceData   string `json:"sourceData"`
+	Key5D        string `json:"key5D"`
 }
 
 type TransmuteResponse struct {
@@ -44,6 +49,7 @@ type OpenAIResponse struct {
 
 type PhraseEntry struct {
 	Phrase       string `json:"phrase"`
+	ResonanceKey string `json:"resonanceKey"`
 	Frequency    string `json:"frequency"`
 	SourceFormat string `json:"sourceFormat,omitempty"`
 	TargetFormat string `json:"targetFormat,omitempty"`
@@ -51,10 +57,37 @@ type PhraseEntry struct {
 	TargetSample string `json:"targetSample,omitempty"`
 }
 
-var (
-	phraseStore = make([]PhraseEntry, 0)
-	storeMutex  sync.Mutex
-)
+var firestoreClient *firestore.Client
+
+func initFirestore(ctx context.Context) error {
+	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	if projectID == "" {
+		return fmt.Errorf("GOOGLE_CLOUD_PROJECT environment variable not set")
+	}
+
+	secretClient, err := secretmanager.NewClient(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create secret manager client: %w", err)
+	}
+	defer secretClient.Close()
+
+	accessRequest := &secretmanagerpb.AccessSecretVersionRequest{
+		Name: fmt.Sprintf("projects/%s/secrets/firestore-credentials/versions/latest", projectID),
+	}
+	result, err := secretClient.AccessSecretVersion(ctx, accessRequest)
+	if err != nil {
+		return fmt.Errorf("failed to access secret version: %w", err)
+	}
+
+	credsOption := option.WithCredentialsJSON(result.Payload.Data)
+	client, err := firestore.NewClient(ctx, projectID, credsOption)
+	if err != nil {
+		return fmt.Errorf("failed to create firestore client: %w", err)
+	}
+
+	firestoreClient = client
+	return nil
+}
 
 func callGPT4(prompt string) (string, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
@@ -112,13 +145,24 @@ func callGPT4(prompt string) (string, error) {
 }
 
 func TransmuteHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
 	var req TransmuteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
-	prompt := fmt.Sprintf("Phrase: %s\nSourceData: %s\nKey5D: %s", req.Phrase, req.SourceData, req.Key5D)
+	docRef := firestoreClient.Collection("phrases").Where("resonanceKey", "==", req.ResonanceKey)
+	docs, err := docRef.Documents(ctx).GetAll()
+	if err != nil || len(docs) == 0 {
+		http.Error(w, "Resonance key not found", http.StatusNotFound)
+		return
+	}
+
+	var entry PhraseEntry
+	docs[0].DataTo(&entry)
+
+	prompt := fmt.Sprintf("Phrase: %s\nSourceData: %s\nKey5D: %s", entry.Phrase, req.SourceData, req.Key5D)
 	output, err := callGPT4(prompt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -134,23 +178,48 @@ func TransmuteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func AddPhraseHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
 	var entry PhraseEntry
 	if err := json.NewDecoder(r.Body).Decode(&entry); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	storeMutex.Lock()
-	phraseStore = append(phraseStore, entry)
-	storeMutex.Unlock()
+
+	entry.ResonanceKey = generateResonanceKey()
+	entry.Frequency = "432Hz"
+
+	_, _, err := firestoreClient.Collection("phrases").Add(ctx, entry)
+	if err != nil {
+		http.Error(w, "Failed to store phrase", http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(entry)
 }
 
 func ListPhrasesHandler(w http.ResponseWriter, r *http.Request) {
-	storeMutex.Lock()
-	defer storeMutex.Unlock()
+	ctx := context.Background()
+	docs, err := firestoreClient.Collection("phrases").Documents(ctx).GetAll()
+	if err != nil {
+		http.Error(w, "Failed to fetch phrases", http.StatusInternalServerError)
+		return
+	}
+
+	phrases := make([]PhraseEntry, 0, len(docs))
+	for _, doc := range docs {
+		var entry PhraseEntry
+		doc.DataTo(&entry)
+		phrases = append(phrases, entry)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(phraseStore)
+	json.NewEncoder(w).Encode(phrases)
+}
+
+func generateResonanceKey() string {
+	salts := []string{"sha", "val", "run", "ek", "ka", "zor", "ten", "vek", "mal"}
+	return fmt.Sprintf("RK-%d-%s", time.Now().UnixNano(), salts[rand.Intn(len(salts))])
 }
 
 func main() {
@@ -160,6 +229,11 @@ func main() {
 	}
 
 	rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	ctx := context.Background()
+	if err := initFirestore(ctx); err != nil {
+		log.Fatalf("Failed to initialize Firestore: %v", err)
+	}
 
 	http.HandleFunc("/transmute", TransmuteHandler)
 	http.HandleFunc("/add-phrase", AddPhraseHandler)
