@@ -170,8 +170,13 @@ func TransmuteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := TransmuteResponse{
-		Output:    output,
-		Frequency: "432Hz",
+		Output:       output,
+		Phrase:       entry.Phrase,
+		Frequency:    entry.Frequency,
+		SourceFormat: entry.SourceFormat,
+		TargetFormat: entry.TargetFormat,
+		SourceSample: entry.SourceSample,
+		TargetSample: entry.TargetSample,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
