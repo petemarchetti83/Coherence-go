@@ -2,6 +2,9 @@
 options:
   logging: CLOUD_LOGGING_ONLY
 
+substitutions:
+  _OPENAI_API_KEY: your-api-key
+  _PROJECT_ID: your-project-id
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: [
