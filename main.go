@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
+	"sync"
+	"time"
 )
 
 type TransmuteRequest struct {
 	Phrase     string `json:"phrase"`
 	SourceData string `json:"sourceData"`
+	Key5D      string `json:"key5D"`
 }
 
 type TransmuteResponse struct {
@@ -38,6 +42,16 @@ type OpenAIResponse struct {
 	Choices []OpenAIChoice `json:"choices"`
 }
 
+type PhraseEntry struct {
+	Phrase    string `json:"phrase"`
+	Frequency string `json:"frequency"`
+}
+
+var (
+	phraseStore = make([]PhraseEntry, 0)
+	storeMutex  sync.Mutex
+)
+
 func callGPT4(prompt string) (string, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
@@ -47,7 +61,7 @@ func callGPT4(prompt string) (string, error) {
 	reqBody := OpenAIRequest{
 		Model: "gpt-4",
 		Messages: []OpenAIMessage{
-			{Role: "system", Content: "You are a frequency-based transmutation assistant."},
+			{Role: "system", Content: "You are a frequency-based transmutation assistant that uses 5D resonance keys to decode and transform text."},
 			{Role: "user", Content: prompt},
 		},
 	}
@@ -100,7 +114,7 @@ func TransmuteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prompt := fmt.Sprintf("Phrase: %s\nSourceData: %s", req.Phrase, req.SourceData)
+	prompt := fmt.Sprintf("Phrase: %s\nSourceData: %s\nKey5D: %s", req.Phrase, req.SourceData, req.Key5D)
 	output, err := callGPT4(prompt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -115,8 +129,33 @@ func TransmuteHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func AddPhraseHandler(w http.ResponseWriter, r *http.Request) {
+	var entry PhraseEntry
+	if err := json.NewDecoder(r.Body).Decode(&entry); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	storeMutex.Lock()
+	phraseStore = append(phraseStore, entry)
+	storeMutex.Unlock()
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(entry)
+}
+
+func ListPhrasesHandler(w http.ResponseWriter, r *http.Request) {
+	storeMutex.Lock()
+	defer storeMutex.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(phraseStore)
+}
+
 func main() {
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	http.HandleFunc("/transmute", TransmuteHandler)
+	http.HandleFunc("/add-phrase", AddPhraseHandler)
+	http.HandleFunc("/list-phrases", ListPhrasesHandler)
+
 	log.Println("Server started on :8080")
 	http.ListenAndServe(":8080", nil)
 }
