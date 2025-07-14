@@ -241,14 +241,21 @@ func main() {
 	rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	ctx := context.Background()
+
+	log.Println("🔥 Starting up...")
+
 	if err := initFirestore(ctx); err != nil {
-		log.Fatalf("Failed to initialize Firestore: %v", err)
+		log.Printf("❌ Firestore init failed: %v", err)
+		os.Exit(1)
 	}
+
+	log.Printf("✅ Firestore initialized. Listening on port %s", port)
 
 	http.HandleFunc("/transmute", TransmuteHandler)
 	http.HandleFunc("/add-phrase", AddPhraseHandler)
 	http.HandleFunc("/list-phrases", ListPhrasesHandler)
 
-	log.Printf("Server started on :%s\n", port)
-	http.ListenAndServe(":"+port, nil)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("❌ Server error: %v", err)
+	}
 }
