@@ -25,8 +25,13 @@ type TransmuteRequest struct {
 }
 
 type TransmuteResponse struct {
-	Output    string `json:"output"`
-	Frequency string `json:"frequency"`
+	Output       string `json:"output"`
+	Phrase       string `json:"phrase"`
+	Frequency    string `json:"frequency"`
+	SourceFormat string `json:"sourceFormat,omitempty"`
+	TargetFormat string `json:"targetFormat,omitempty"`
+	SourceSample string `json:"sourceSample,omitempty"`
+	TargetSample string `json:"targetSample,omitempty"`
 }
 
 type OpenAIMessage struct {
